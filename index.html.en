@@ -1,0 +1,162 @@
+<html>
+<head>
+<meta charset="utf-8" />
+<title>EPUB on the WEB</title>
+<script type="module">
+import "std:virtual-scroller";
+</script>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="Content-Language" content="en">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="main.css" />
+</head>
+<body>
+
+<main> 
+<div id="wrapper">
+
+<form method="get" action="index.html">
+    <button type="submit">Library</button>
+</form>
+
+
+
+<!-- <input type="button" value="Begin Reading" id="begin" /> -->
+
+<div id="page-controls"></div>
+<input type="button" value="Night" id="night" />
+
+<!-- depend on browser shortcuts
+<input type="button" value="+" id="bigger" />
+<input type="button" value="-" id="smaller" />
+-->
+
+
+<!-- no need for this 
+
+<input type="button" value="Previous" id="decrement" />
+<input type="button" value="Next" id="increment" />
+-->
+
+<!-- <input type="button" value="EPUB Package" id="epub" /> -->
+
+
+
+
+</div>
+<div class="iframe-container">
+<virtual-scroll id="content">
+
+</virtual-scroll>
+</div>
+</main> 
+
+
+
+
+<script type="text/javascript">
+
+var base = 'http://localhost/~cramerd/Moby-Dick-epub-samples/';
+
+// fetch and parse an XML file
+
+function getXml(url) {
+  return fetch(url)
+    .then(response => response.text())
+    .then(result => (new window.DOMParser()).parseFromString(result, "text/xml"));
+};
+
+
+
+// fetch container.xml
+
+getXml(base + 'META-INF/container.xml')
+
+// find the path to the package file, return the XML of the package file
+
+  .then(packagePath => packagePath.getElementsByTagName("rootfile")[0].getAttribute("full-path"))
+  .then(fullPath => getXml(base + fullPath))
+  
+// figure out what hrefs form the reading order
+
+  .then((packageFileXml) => {
+    var spineItems = packageFileXml.getElementsByTagName("itemref");
+    var manifestItems = packageFileXml.getElementsByTagName("item");
+    var readingOrder = [];
+
+    for (var i = 0; i < spineItems.length; i++) {
+      var itemref = spineItems[i].getAttribute("idref");
+      var href = manifestItems.namedItem(itemref).getAttribute("href");
+      readingOrder.push(href);
+    }
+    
+    // also want to find CSS??? This just finds the first CSS file. 
+    
+    var cssFile = packageFileXml.querySelectorAll('[media-type="text/css"]')[0].getAttribute("href"); 
+    console.log(cssFile);
+    var cssLink = document.createElement("link");
+    cssLink.setAttribute("href", base + 'OPS/' + cssFile);
+    cssLink.setAttribute("rel", "stylesheet");
+    document.getElementsByTagName('head')[0].appendChild(cssLink);
+    
+    
+    var tocFile = packageFileXml.querySelectorAll('[properties*="nav"]')[0].getAttribute("href"); 
+    console.log(tocFile);
+    var tocLink = document.createElement("a");
+    tocLink.setAttribute("href", base + 'OPS/' + tocFile);
+    tocLink.setAttribute("role", "doc-toc");
+    tocLink.innerHTML = "table of contents";
+    document.getElementById('page-controls').appendChild(tocLink);
+    
+    
+
+    return readingOrder;
+  })
+
+// the below is flawed since paths are relative to package file, so need to figure that out
+
+.then((beginReading) => {
+
+let url = beginReading;
+  let array = new Array;
+  var fetches = [];
+  for (let i = 0; i < url.length; i++) {
+ //   console.log(url[i]);
+    fetches.push(
+      fetch(base + 'OPS/' + url[i])
+      .then(res => {return res.text(); })
+      .then(res => (new window.DOMParser()).parseFromString(res, "text/xml"))
+      .then(res => {
+            array.push(res);
+          }
+      )
+      .catch(status, err => {return console.log(status, err);})
+    );
+  }
+  Promise.all(fetches).then(function() {
+    console.log (array.length);
+    for (var i=0; i < array.length; i++) {
+    
+    var wrapper = document.createElement('section');
+    
+    var childOfBody = array[i].getElementsByTagName("body")[0].children;
+    
+    for (var j=0; j < childOfBody.length; j++) {
+        
+    wrapper.appendChild(childOfBody[j]);
+    
+    }
+
+    
+    document.getElementById('content').appendChild(wrapper);
+    }
+  });
+  })
+
+// i got the async blues
+// you be makin' a lot of promises
+
+</script>
+<script src=main.js></script>
+</body>
+</html>
